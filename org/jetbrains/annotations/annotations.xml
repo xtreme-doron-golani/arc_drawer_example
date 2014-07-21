@@ -1,0 +1,5 @@
+<root>
+    <item name='org.jetbrains.annotations.NotNull'>
+        <annotation name='org.jetbrains.annotations.NotNull' />
+    </item>
+</root>
