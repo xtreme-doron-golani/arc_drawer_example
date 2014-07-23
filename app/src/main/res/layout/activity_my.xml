@@ -17,8 +17,8 @@
 
     <com.example.arcer.testapp.ArcDrawingPanel
         android:id="@+id/arcDrawer"
-        android:layout_width="500dp"
-        android:layout_height="500dp"
+        android:layout_width="300dp"
+        android:layout_height="300dp"
         android:background="@android:color/transparent"/>
 
     <Button

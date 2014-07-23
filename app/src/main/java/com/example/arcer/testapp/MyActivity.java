@@ -39,15 +39,15 @@ public class MyActivity extends ActionBarActivity {
     private ArcDrawingPanel.Data getExampleData() {
         ArcDrawingPanel.Data data = new ArcDrawingPanel.Data();
 
-        data.center = new PointF(400, 400);
-        data.radius = 250;
+        data.center = new PointF(150, 150);
+        data.radius = 100;
 
         data.arcParts = new ArrayList<Pair<Float, Paint>>();
 
         Paint red = new Paint(Paint.ANTI_ALIAS_FLAG);
         red.setColor(Color.RED);
 
-        Pair<Float, Paint> first = new Pair<Float, Paint>(5.5F, red);
+        Pair<Float, Paint> first = new Pair<Float, Paint>(1.5F, red);
 
         Paint blue = new Paint(Paint.ANTI_ALIAS_FLAG);
         blue.setColor(Color.BLUE);
@@ -57,7 +57,7 @@ public class MyActivity extends ActionBarActivity {
         Paint green = new Paint(Paint.ANTI_ALIAS_FLAG);
         green.setColor(Color.GREEN);
 
-        Pair<Float, Paint> third = new Pair<Float, Paint>(6.5F, green);
+        Pair<Float, Paint> third = new Pair<Float, Paint>(3.5F, green);
 
         data.arcParts.add(first);
         data.arcParts.add(second);
@@ -68,7 +68,7 @@ public class MyActivity extends ActionBarActivity {
         data.backgroundPaint = backgroundPaint;
         data.emptyDegrees = 60;
         data.startAngleDegrees = 90 + (data.emptyDegrees / 2);
-        data.strokeWidth = 100;
+        data.strokeWidth = 50;
 
         data.maxDrawPercentage = 0;
         return data;

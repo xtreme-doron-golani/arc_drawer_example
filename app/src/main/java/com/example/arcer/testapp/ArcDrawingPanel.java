@@ -15,10 +15,13 @@ import java.util.ArrayList;
 public class ArcDrawingPanel extends SurfaceView implements SurfaceHolder.Callback {
 
     public static final int POINTS_ON_CIRCLE = 50;
-    public static final int ANIMATION_DELAY_STEP_MILLISECONDS = 20;
-    public static final double PERCENTAGE_CHANGE_PER_ANIMATION_CHANGE = 1.5;
+    public static final int ANIMATION_DELAY_STEP_MILLISECONDS = 10;
+    public static final double PERCENTAGE_CHANGE_PER_ANIMATION_CHANGE = 1;
     public static final int MIN_POINTS_ON_ARC = 1;
+    public static final int BREAK_INTO_X_PARTS = 3;
     private Data data;
+
+    private ArrayList<Pair<Float, Paint>> internalArcParts = new ArrayList<Pair<Float, Paint>>();
 
     public ArcDrawingPanel(Context context) {
         super(context);
@@ -35,7 +38,25 @@ public class ArcDrawingPanel extends SurfaceView implements SurfaceHolder.Callba
 
     public void setData(Data data) {
         this.data = data;
+
+        workAround180DegreeProblem(data.arcParts);
+
         invalidate();
+    }
+
+    private void workAround180DegreeProblem(ArrayList<Pair<Float, Paint>> originalArcParts) {
+        internalArcParts.clear();
+        float total = getTotalArcsWeight(originalArcParts);
+        for(Pair<Float, Paint> pair : originalArcParts){
+            if(pair.first / total >= 0.5){
+                for(int i = 0; i < BREAK_INTO_X_PARTS; i++) {
+                    internalArcParts.add(new Pair<Float, Paint>(pair.first / BREAK_INTO_X_PARTS, pair.second));
+                }
+            }
+            else{
+                internalArcParts.add(pair);
+            }
+        }
     }
 
     @Override
@@ -47,6 +68,15 @@ public class ArcDrawingPanel extends SurfaceView implements SurfaceHolder.Callba
     @Override
     public void surfaceDestroyed(SurfaceHolder surfaceHolder) {}
 
+
+    private float getTotalArcsWeight(ArrayList<Pair<Float, Paint>> arcs){
+        float total = 0;
+        for(Pair<Float, Paint> pair : arcs){
+            total += pair.first;
+        }
+        return total;
+    }
+
     @Override
     public void onDraw(final Canvas canvas) {
         super.onDraw(canvas);
@@ -54,17 +84,16 @@ public class ArcDrawingPanel extends SurfaceView implements SurfaceHolder.Callba
             return;
         }
 
-        float total = 0;
-        for(Pair<Float, Paint> pair : data.arcParts){
-            total += pair.first;
-        }
+        float total = getTotalArcsWeight(internalArcParts);
 
         float totalDegrees = 360 - data.emptyDegrees;
         float startingAngle = data.startAngleDegrees;
         float outerRadius = data.radius + data.strokeWidth;
         float maxDrawAngle = data.maxDrawPercentage / 100 * totalDegrees;
         boolean maxDrawAngelExceeded = false;
-        for(Pair<Float, Paint> pair : data.arcParts){
+        float overlapDrawingOffset = 0.0F;
+        int index = 0;
+        for(Pair<Float, Paint> pair : internalArcParts){
             if(!maxDrawAngelExceeded) {
                 float sweepAngleDegrees = pair.first / total * totalDegrees;
                 maxDrawAngelExceeded = startingAngle + sweepAngleDegrees - data.startAngleDegrees > maxDrawAngle;
@@ -72,14 +101,18 @@ public class ArcDrawingPanel extends SurfaceView implements SurfaceHolder.Callba
                     sweepAngleDegrees = maxDrawAngle + data.startAngleDegrees - startingAngle;
                 }
 
-                float endAngle = startingAngle + sweepAngleDegrees;
-                PointF outerArcStartPoint = ArcUtils.pointFromAngleDegrees(data.center, outerRadius, startingAngle);
+                float endAngle = startingAngle + sweepAngleDegrees + overlapDrawingOffset;
+                float startingAngleForDrawing = startingAngle - overlapDrawingOffset;
+                PointF outerArcStartPoint = ArcUtils.pointFromAngleDegrees(data.center, outerRadius, startingAngleForDrawing);
                 PointF innerArcEndPoint = ArcUtils.pointFromAngleDegrees(data.center, data.radius, endAngle);
 
-                drawSingleArc(canvas, POINTS_ON_CIRCLE, startingAngle, outerRadius, pair, sweepAngleDegrees, endAngle, outerArcStartPoint, innerArcEndPoint);
+                drawSingleArc(canvas, POINTS_ON_CIRCLE, startingAngleForDrawing, outerRadius, pair, sweepAngleDegrees + overlapDrawingOffset, endAngle, outerArcStartPoint, innerArcEndPoint);
 
                 startingAngle += sweepAngleDegrees;
             }
+
+            overlapDrawingOffset = 1F ;
+            index++;
         }
         scheduleNextAnimationPhase();
     }
@@ -88,9 +121,9 @@ public class ArcDrawingPanel extends SurfaceView implements SurfaceHolder.Callba
         Path path = new Path();
         path.moveTo(outerArcStartPoint.x, outerArcStartPoint.y);
         float pointsOnArc = Math.min(MIN_POINTS_ON_ARC, pointsOnCircle * (sweepAngleDegrees / 360F));
-        path = ArcUtils.createBezierArcDegrees(data.center, outerRadius, startingAngle, sweepAngleDegrees, (int) pointsOnArc, true, path);
+        path = ArcUtils.createBezierArcDegrees(data.center, outerRadius, startingAngle, sweepAngleDegrees, (int) pointsOnArc, false, path);
         path.lineTo(innerArcEndPoint.x, innerArcEndPoint.y);
-        path = ArcUtils.createBezierArcDegrees(data.center, data.radius, endAngle, -1 * sweepAngleDegrees, (int)pointsOnArc, true, path);
+        path = ArcUtils.createBezierArcDegrees(data.center, data.radius, endAngle, -1 * sweepAngleDegrees, (int)pointsOnArc, false, path);
         path.lineTo(outerArcStartPoint.x, outerArcStartPoint.y);
         canvas.drawPath(path, pair.second);
     }
