@@ -6,3 +6,4 @@
 .gradle/1.12/taskArtifacts/taskArtifacts.bin
 build/intermediates/dex-cache/cache.xml
 build/intermediates/model_data.bin
+.idea/workspace.xml
