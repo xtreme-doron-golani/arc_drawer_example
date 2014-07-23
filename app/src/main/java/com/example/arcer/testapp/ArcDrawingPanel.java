@@ -5,7 +5,9 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.PointF;
+import android.graphics.RectF;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.util.Pair;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
@@ -17,8 +19,11 @@ public class ArcDrawingPanel extends SurfaceView implements SurfaceHolder.Callba
     public static final int POINTS_ON_CIRCLE = 50;
     public static final int ANIMATION_DELAY_STEP_MILLISECONDS = 20;
     public static final double PERCENTAGE_CHANGE_PER_ANIMATION_CHANGE = 1.5;
-    public static final int MIN_POINTS_ON_ARC = 1;
+    public static final int MIN_POINTS_ON_ARC = 5;
+    public static final float STEP_IN_DEGREES = 1F;
     private Data data;
+
+    ArrayList<Pair<Path, Paint>> paths = new ArrayList<Pair<Path, Paint>>();
 
     public ArcDrawingPanel(Context context) {
         super(context);
@@ -35,6 +40,40 @@ public class ArcDrawingPanel extends SurfaceView implements SurfaceHolder.Callba
 
     public void setData(Data data) {
         this.data = data;
+        paths.clear();
+
+        float total = 0;
+        for(Pair<Float, Paint> pair : data.arcParts){
+            total += pair.first;
+        }
+
+        float totalDegrees = 360 - data.emptyDegrees;
+        float startingAngle = data.startAngleDegrees;
+        float outerRadius = data.radius + data.strokeWidth;
+        for(Pair<Float, Paint> pair : data.arcParts){
+
+            float sweepAngleDegrees = pair.first / total * totalDegrees;
+            float endAngle = startingAngle + sweepAngleDegrees;
+
+            for(float i=0; i < sweepAngleDegrees; i = i + STEP_IN_DEGREES){
+
+                float stepStartingAngle = startingAngle + i;
+                float stepEndAngle = stepStartingAngle + STEP_IN_DEGREES;
+                stepEndAngle = Math.min(endAngle, stepEndAngle);
+                float stepSweepingDegrees = stepEndAngle - stepStartingAngle;
+
+                PointF stepOuterArcStartPoint = ArcUtils.pointFromAngleDegrees(data.center, outerRadius, stepStartingAngle);
+                PointF stepInnerArcEndPoint = ArcUtils.pointFromAngleDegrees(data.center, data.radius, stepEndAngle);
+
+                Log.d("stepSweepingDegrees " + stepSweepingDegrees + " stepOuterArcStartPoint " + stepOuterArcStartPoint.toString(), " stepInnerArcEndPoint " + stepInnerArcEndPoint);
+
+                addSingleArc(POINTS_ON_CIRCLE, stepStartingAngle, outerRadius, pair.second, stepSweepingDegrees, stepEndAngle, stepOuterArcStartPoint, stepInnerArcEndPoint);
+            }
+
+            startingAngle += sweepAngleDegrees;
+
+        }
+
         invalidate();
     }
 
@@ -54,46 +93,39 @@ public class ArcDrawingPanel extends SurfaceView implements SurfaceHolder.Callba
             return;
         }
 
-        float total = 0;
-        for(Pair<Float, Paint> pair : data.arcParts){
-            total += pair.first;
+        float percent = Math.min(1.0F , data.maxDrawPercentage / 100.0F);
+        int maxDrawPath = (int)Math.ceil(percent * paths.size());
+
+        for(int i = 0; i < maxDrawPath; i++){
+            Pair<Path, Paint> path = paths.get(i);
+            canvas.drawPath(path.first, path.second);
         }
 
-        float totalDegrees = 360 - data.emptyDegrees;
-        float startingAngle = data.startAngleDegrees;
-        float outerRadius = data.radius + data.strokeWidth;
-        float maxDrawAngle = data.maxDrawPercentage / 100 * totalDegrees;
-        boolean maxDrawAngelExceeded = false;
-        for(Pair<Float, Paint> pair : data.arcParts){
-            if(!maxDrawAngelExceeded) {
-                float sweepAngleDegrees = pair.first / total * totalDegrees;
-                maxDrawAngelExceeded = startingAngle + sweepAngleDegrees - data.startAngleDegrees > maxDrawAngle;
-                if (maxDrawAngelExceeded) {
-                    sweepAngleDegrees = maxDrawAngle + data.startAngleDegrees - startingAngle;
-                }
-
-                float endAngle = startingAngle + sweepAngleDegrees;
-                PointF outerArcStartPoint = ArcUtils.pointFromAngleDegrees(data.center, outerRadius, startingAngle);
-                PointF innerArcEndPoint = ArcUtils.pointFromAngleDegrees(data.center, data.radius, endAngle);
-
-                drawSingleArc(canvas, POINTS_ON_CIRCLE, startingAngle, outerRadius, pair, sweepAngleDegrees, endAngle, outerArcStartPoint, innerArcEndPoint);
-
-                startingAngle += sweepAngleDegrees;
-            }
-        }
         scheduleNextAnimationPhase();
     }
 
-    private void drawSingleArc(Canvas canvas, int pointsOnCircle, float startingAngle, float outerRadius, Pair<Float, Paint> pair, float sweepAngleDegrees, float endAngle, PointF outerArcStartPoint, PointF innerArcEndPoint) {
+    private void addSingleArc(int pointsOnCircle, float startingAngle, float outerRadius, Paint paint, float sweepAngleDegrees, float endAngle, PointF outerArcStartPoint, PointF innerArcEndPoint) {
         Path path = new Path();
         path.moveTo(outerArcStartPoint.x, outerArcStartPoint.y);
         float pointsOnArc = Math.min(MIN_POINTS_ON_ARC, pointsOnCircle * (sweepAngleDegrees / 360F));
+
+//        addArc(path, startingAngle, sweepAngleDegrees, outerRadius);
         path = ArcUtils.createBezierArcDegrees(data.center, outerRadius, startingAngle, sweepAngleDegrees, (int) pointsOnArc, true, path);
+
         path.lineTo(innerArcEndPoint.x, innerArcEndPoint.y);
+
+//        addArc(path, endAngle, -1.0F * sweepAngleDegrees, data.radius);
         path = ArcUtils.createBezierArcDegrees(data.center, data.radius, endAngle, -1 * sweepAngleDegrees, (int)pointsOnArc, true, path);
+
         path.lineTo(outerArcStartPoint.x, outerArcStartPoint.y);
-        canvas.drawPath(path, pair.second);
+        paths.add(new Pair<Path, Paint>(path, paint));
     }
+
+    private void addArc(Path path, float startingAngle, float sweepAngleDegrees, float radius){
+        RectF rectF = new RectF(data.center.x - radius, data.center.y - radius, data.center.x + radius, data.center.y + radius);
+        path.addArc(rectF, startingAngle, sweepAngleDegrees);
+    }
+
 
     private void scheduleNextAnimationPhase() {
         if(data.maxDrawPercentage < 100) {
